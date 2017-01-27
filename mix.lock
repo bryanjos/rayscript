@@ -1,0 +1,3 @@
+%{"estree": {:hex, :estree, "2.5.0", "9776c1705a72dc5a0d56cdf431173c3e75f9e509278a857ec55374a49f5699ef", [:mix], []},
+  "flow": {:hex, :flow, "0.11.0", "6ca9a05f33e3df10bc2ab847ad470523d3a01673456049a60110467d2f31bd58", [:mix], [{:gen_stage, "~> 0.11.0", [hex: :gen_stage, optional: false]}]},
+  "gen_stage": {:hex, :gen_stage, "0.11.0", "943bdfa85c75fa624e0a36a9d135baad20a523be040178f5a215444b45c66ea4", [:mix], []}}
