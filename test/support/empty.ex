@@ -1,3 +1,2 @@
 defmodule Empty do
-
 end
