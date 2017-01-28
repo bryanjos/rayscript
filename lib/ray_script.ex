@@ -1,4 +1,5 @@
 defmodule RayScript do
+  alias RayScript.Translator
 
   def compile(opts \\ [input_path: Mix.Project.build_path()]) do
     get_modules(opts[:input_path])
@@ -46,7 +47,8 @@ defmodule RayScript do
   end
 
   defp to_js_ast(abstract_code) do
-    abstract_code
+    IO.inspect abstract_code
+    Translator.translate(abstract_code, nil)
   end
 
   defp to_js_code(js_ast) do
