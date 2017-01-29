@@ -6,6 +6,7 @@ defmodule RayScript.Mixfile do
      version: "0.1.0",
      elixir: "~> 1.4",
      elixirc_paths: elixirc_paths(Mix.env),
+     erlc_paths: erlc_paths(Mix.env),
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps()]
@@ -17,6 +18,9 @@ defmodule RayScript.Mixfile do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_),     do: ["lib"]
+
+  defp erlc_paths(:test), do: ["src", "test/support"]
+  defp erlc_paths(_),     do: ["src"]
 
   defp deps do
     [
