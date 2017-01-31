@@ -66,12 +66,21 @@ defmodule RayScript.Translator do
     )
   end
 
-  defp process({:c_case, _, _subject, _clauses}) do
-    J.identifier("a")
+  defp process({:c_case, _, subject, clauses}) do
+    processed_clauses = Enum.map(clauses, &process_clause(&1))
+
+    J.call_expression(
+      J.identifier("case"),
+      [process(subject), J.array_expression(processed_clauses)]
+    )
   end
 
   defp process({:c_var, _, param}) do
     J.identifier(param)
+  end
+
+  defp process({:c_literal, _, param}) when is_number(param) or is_binary(param) or is_boolean(param) do
+    J.literal(param)
   end
 
   defp process({:c_literal, _, param}) when is_atom(param) do
@@ -84,13 +93,16 @@ defmodule RayScript.Translator do
     )
   end
 
-  defp process({:c_literal, _, param}) when is_number(param) or is_binary(param) do
-    J.literal(param)
-  end
-
   defp process({:c_literal, _, param}) when is_list(param) do
-    items = Enum.map(param, &process(&1))
-    J.array_expression(items)
+    if Keyword.keyword?(param) do
+      Enum.map(param, fn(x) ->
+        process({:c_literal, [], x})
+      end)
+      |> J.array_expression
+    else
+      items = Enum.map(param, &process(&1))
+      J.array_expression(items)
+    end
   end
 
   defp process({:c_literal, _, param}) when is_tuple(param) do
@@ -101,14 +113,43 @@ defmodule RayScript.Translator do
     )
   end
 
+  defp process({:c_literal, _, param}) when is_bitstring(param) do
+    J.literal(:ok)
+  end
+
+  defp process({:c_tuple, _, params}) do
+    items = Enum.map(params, &process(&1))
+    J.new_expression(
+      J.identifier("Tuple"),
+      items
+    )
+  end
+
+  defp process({:c_primop, _, {:c_literal, _, error}, params}) do
+    J.call_expression(
+      J.identifier(error),
+      Enum.map(params, &process(&1))
+    )
+  end
+
   defp process(param) when is_number(param) or is_binary(param) do
     J.literal(param)
+  end
+
+  defp process(param) when is_binary(param) do
+    J.identifier(param)
+  end
+
+  defp process(param) when is_atom(param) do
+    process({:c_literal, [], param})
   end
 
   defp process(param) when is_tuple(param) do
     case elem(param, 0) do
       :c_let ->
         process_let(param)
+      :c_clause ->
+        process_clause(param)
       _ ->
         param
     end
@@ -134,4 +175,34 @@ defmodule RayScript.Translator do
     end
   end
 
+  defp process_clause(param) do
+    clause_list = Tuple.to_list(param)
+    [:c_clause, _, [pattern] | rest] = clause_list
+
+    body = Enum.map(rest, &process(&1))
+
+    J.call_expression(
+      J.identifier("clause"),
+      [
+        process(pattern),
+        J.function_expression([], [], J.block_statement(body))
+      ]
+    )
+  end
+
+
+  {
+    :c_binary,
+    [0, {:file, 'test/support/empty.ex'}],
+    [
+      {:c_bitstr,
+       [0, {:file, 'test/support/empty.ex'}],
+       {:c_literal, [0, {:file, 'test/support/empty.ex'}], 97},
+       {:c_literal, [0, {:file, 'test/support/empty.ex'}], 8},
+       {:c_literal, [], 1},
+       {:c_literal, [], :integer},
+       {:c_literal, [], [:unsigned, :big]}
+      }
+    ]
+  }
 end
