@@ -44,11 +44,6 @@ defmodule RayScript do
     abstract_code
   end
 
-  defp to_core(abstract_code) do
-    {:ok, _module, core_code} = :compile.forms(abstract_code, [:to_core])
-    core_code
-  end
-
   defp to_js_ast(abstract_code) do
     AbstractTranslator.translate(abstract_code)
   end
