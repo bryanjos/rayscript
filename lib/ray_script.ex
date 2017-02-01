@@ -1,5 +1,5 @@
 defmodule RayScript do
-  alias RayScript.AbstractTranslator
+  alias RayScript.Translator
   alias ESTree.Tools.Generator
 
   def compile(opts \\ [input_path: Mix.Project.build_path()]) do
@@ -45,7 +45,7 @@ defmodule RayScript do
   end
 
   defp to_js_ast(abstract_code) do
-    AbstractTranslator.translate(abstract_code)
+    Translator.translate(abstract_code)
   end
 
   defp to_js_code(js_ast) do

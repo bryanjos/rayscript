@@ -1,5 +1,6 @@
-defmodule RayScript.AbstractTranslator do
+defmodule RayScript.Translator do
   alias ESTree.Tools.Builder, as: J
+  alias RayScript.Translator.Bitstring
 
   def translate(abstract) do
     Enum.reduce(abstract, %RayScript.Result{}, fn(ast, result) ->
@@ -62,32 +63,42 @@ defmodule RayScript.AbstractTranslator do
   end
 
   defp process_clause({:clause, _, pattern, guard, body}) do
+    {patterns, params} = RayScript.Patterns.process(pattern)
+
+
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
         J.identifier("clause")
       ),
       [
-        process_pattern(pattern),
-        process_body(body),
-        process_guard(guard),
-      ]
+        J.array_expression(patterns),
+        process_body(params, body)
+      ] ++ process_guard(guard)
     )
   end
 
-  defp process_pattern(pattern) do
-    J.identifier("null")
+  defp process_guard([]) do
+    []
   end
 
   defp process_guard(guard) do
     J.identifier("null")
   end
 
-  defp process_body(body) do
+  defp process_body(params, body) do
     body = Enum.map(body, &process(&1))
     |> J.block_statement
 
-    J.function_expression([], [], body)
+    J.function_expression(params, [], body)
+  end
+
+  def process({:fun, _, {:clauses, clauses}}) do
+    process_clauses(clauses)
+  end
+
+  def process({:var, _, variable}) do
+    J.identifier(variable)
   end
 
   def process({:atom, _, nil}) do
@@ -104,11 +115,15 @@ defmodule RayScript.AbstractTranslator do
         J.identifier("Symbol"),
         J.identifier("for")
       ),
-      [J.literal(a)]
+      [J.literal("#{ inspect a}")]
     )
   end
 
   def process({number, _, n}) when number in [:integer, :float]  do
+    J.literal(n)
+  end
+
+  def process({:char, _, n})  do
     J.literal(n)
   end
 
@@ -127,22 +142,8 @@ defmodule RayScript.AbstractTranslator do
     J.array_expression(handle_cons(cons, []))
   end
 
-  def process({:bin, _, elements}) do
-    all_strings = Enum.all?(elements, fn
-      {:bin_element, _, {:string, _, _}, :default, :default} -> true
-      _ -> false
-    end)
-
-    if all_strings do
-      process_string(elements)
-    else
-      elements = Enum.map(elements, &process_bin_element(&1))
-      J.new_expression(
-        J.identifier("BitString"),
-        elements
-      )
-    end
-
+  def process({:bin, _, _} = bitstring) do
+    Bitstring.process(bitstring)
   end
 
   def process({:call, _, {:remote, _, {:var, _, v}, {:atom, _, function}}, params}) do
@@ -178,8 +179,9 @@ defmodule RayScript.AbstractTranslator do
     )
   end
 
-  def process({:fun, _, {:clauses, clauses}}) do
-    process_clauses(clauses)
+  def process({:map, _, properties}) do
+    properties = Enum.map(properties, &handle_map_property(&1))
+    J.object_expression(properties)
   end
 
   def process(_) do
@@ -194,135 +196,9 @@ defmodule RayScript.AbstractTranslator do
     list ++ [process(head)] ++ handle_cons(tail, list)
   end
 
-  defp process_string(elements) do
-    Enum.reduce(elements, [], fn({:bin_element, _, {:string, _, str}, _, _}, acc) ->
-      acc ++ [str]
-    end)
-    |> Enum.join("")
-    |> J.literal
-  end
-
-  defp process_bin_element({:bin_element, _, {:string, _, str}, :default, [attr]}) when attr in [:utf8, :utf16, :utf32] do
-
-    J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(attr)
-      ),
-      [
-        J.literal(str)
-      ]
-    )
-  end
-
-  defp process_bin_element({:bin_element, _, {type, _, _} = value, :default, :default}) do
-    type = if type == :string, do: :binary, else: type
-
-    J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(type)
-      ),
-      [
-        process(value)
-      ]
-    )
-  end
-
-  defp process_bin_element({:bin_element, _, {_, _, _} = value, {type, _, size}, :default}) do
-    inner = J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(type)
-      ),
-      [
-        process(value)
-      ]
-    )
-
-    J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(:size)
-      ),
-      [
-        inner,
-        J.literal(size)
-      ]
-    )
-  end
-
-  defp process_bin_element({:bin_element, _, {:var, _, var_name}, :default, attrs}) do
-    Enum.reduce(attrs, J.identifier(var_name), fn(attr, x) ->
-      J.call_expression(
-        J.member_expression(
-          J.identifier("BitString"),
-          J.identifier(attr)
-        ),
-        [
-          x
-        ]
-      )
-    end)
-  end
-
-  defp process_bin_element({:bin_element, _, {type, _, _} = value, :default, attrs}) do
-    inner = J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(type)
-      ),
-      [
-        process(value)
-      ]
-    )
-
-    Enum.reduce(attrs, inner, fn(attr, x) ->
-      J.call_expression(
-        J.member_expression(
-          J.identifier("BitString"),
-          J.identifier(attr)
-        ),
-        [
-          x
-        ]
-      )
-    end)
-  end
-
-
-  defp process_bin_element({:bin_element, _, {_, _, _} = value, {type, _, size}, attrs}) do
-    inner = J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(type)
-      ),
-      [
-        process(value)
-      ]
-    )
-
-    size = J.call_expression(
-      J.member_expression(
-        J.identifier("BitString"),
-        J.identifier(:size)
-      ),
-      [
-        inner,
-        J.literal(size)
-      ]
-    )
-
-    Enum.reduce(attrs, size, fn(attr, x) ->
-      J.call_expression(
-        J.member_expression(
-          J.identifier("BitString"),
-          J.identifier(attr)
-        ),
-        [
-          x
-        ]
-      )
-    end)
+  defp handle_map_property({:map_field_assoc, _, key, value}) do
+    key = process(key)
+    value = process(value)
+    J.property(key, value, :init, false, false, true)
   end
 end
