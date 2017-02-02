@@ -1,4 +1,4 @@
-defmodule RayScript.Patterns do
+defmodule RayScript.Translator.Patterns do
   alias ESTree.Tools.Builder, as: JS
   alias RayScript.Translator
   alias RayScript.Translator.Bitstring
@@ -168,6 +168,24 @@ defmodule RayScript.Patterns do
     { [parameter()], [JS.identifier(variable)] }
   end
 
+  defp do_process({:cons, _, _, {nil, 0}} = cons) do
+    { patterns, params } = cons
+    |> handle_cons([])
+    |> Enum.map(&process([&1]))
+    |> reduce_patterns
+
+    { [JS.array_expression(patterns)], params }
+  end
+
+  defp do_process({:cons, _, _, {:cons, _, _, _}} = cons) do
+    { patterns, params } = cons
+    |> handle_cons([])
+    |> Enum.map(&process([&1]))
+    |> reduce_patterns
+
+    { [JS.array_expression(patterns)], params }
+  end
+
   defp do_process({:cons, _, head, tail}) do
     { head_patterns, head_params } = do_process(head)
     { tail_patterns, tail_params } = do_process(tail)
@@ -217,6 +235,14 @@ defmodule RayScript.Patterns do
   defp unify(target, source) do
     { patterns, params } = process([source])
     { [capture(hd(patterns))], params ++ [JS.identifier(target)] }
+  end
+
+  defp handle_cons({:cons, _, head, {nil, _}}, list) do
+    list ++ [head]
+  end
+
+  defp handle_cons({:cons, _, head, tail}, list) do
+    list ++ [head] ++ handle_cons(tail, list)
   end
 
 end

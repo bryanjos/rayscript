@@ -1,6 +1,6 @@
 defmodule RayScript.Translator do
   alias ESTree.Tools.Builder, as: J
-  alias RayScript.Translator.Bitstring
+  alias RayScript.Translator.{ Bitstring, Match }
 
   def translate(abstract) do
     Enum.reduce(abstract, %RayScript.Result{}, fn(ast, result) ->
@@ -63,7 +63,7 @@ defmodule RayScript.Translator do
   end
 
   defp process_clause({:clause, _, pattern, guard, body}) do
-    {patterns, params} = RayScript.Patterns.process(pattern)
+    {patterns, params} = RayScript.Translator.Patterns.process(pattern)
 
 
     J.call_expression(
@@ -88,6 +88,7 @@ defmodule RayScript.Translator do
 
   defp process_body(params, body) do
     body = Enum.map(body, &process(&1))
+    |> List.flatten
     |> J.block_statement
 
     J.function_expression(params, [], body)
@@ -95,6 +96,10 @@ defmodule RayScript.Translator do
 
   def process({:fun, _, {:clauses, clauses}}) do
     process_clauses(clauses)
+  end
+
+  def process({:match, _, left, right}) do
+    Match.match(left, right)
   end
 
   def process({:var, _, variable}) do
@@ -196,7 +201,7 @@ defmodule RayScript.Translator do
     list ++ [process(head)] ++ handle_cons(tail, list)
   end
 
-  defp handle_map_property({:map_field_assoc, _, key, value}) do
+  defp handle_map_property({type, _, key, value}) when type in [:map_field_assoc, :map_field_exact] do
     key = process(key)
     value = process(value)
     J.property(key, value, :init, false, false, true)
