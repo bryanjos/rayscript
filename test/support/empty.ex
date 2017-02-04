@@ -5,5 +5,6 @@ defmodule Empty do
   end
 
   def goodbye() do
+    -1
   end
 end

@@ -8,7 +8,7 @@ defmodule RayScript.Translator do
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
-        J.identifier("defmatch")
+        J.identifier("defmatchgen")
       ),
       processed
     )
@@ -28,6 +28,14 @@ defmodule RayScript.Translator do
         process_body(params, body)
       ] ++ process_guard(guard)
     )
+  end
+
+  def process({:fun, _, {:function, {:atom, _, module}, {:atom, _, name}, {:integer, _, arity}}} ) do
+    handle_members(module, name, arity)
+  end
+
+  def process({:fun, _, {:function, name, arity}}) do
+    J.identifier("#{name}_#{arity}")
   end
 
   def process({:fun, _, {:clauses, clauses}}) do
@@ -56,7 +64,7 @@ defmodule RayScript.Translator do
         J.identifier("Symbol"),
         J.identifier("for")
       ),
-      [J.literal("#{ inspect a}")]
+      [J.literal("#{a}")]
     )
   end
 
@@ -78,6 +86,16 @@ defmodule RayScript.Translator do
   def process({:nil, 0}) do
     J.array_expression([])
   end
+
+  def process({:cons, _, head, tail}) do
+    J.call_expression(
+      J.member_expression(
+        J.array_expression([process(head)]),
+        J.identifier("concat")
+      ),
+      [process(tail)]
+    )
+  end  
 
   def process({:cons, _, _, _} = cons) do
     J.array_expression(handle_cons(cons, []))
@@ -107,22 +125,7 @@ defmodule RayScript.Translator do
 
   def process({:call, _, {:remote, _, {:atom, _, module}, {:atom, _, name}}, params}) do
     arity = length(params)
-
-    pieces = String.split(inspect(module), ".")
-    pieces = pieces ++ ["#{name}_#{arity}"]
-    pieces = Enum.map(pieces, fn(x) -> J.identifier(x) end)
-
-    members = Enum.reduce(pieces, nil, fn(x, ast) ->
-      case ast do
-        nil ->
-          J.member_expression(x, nil)
-        %ESTree.MemberExpression{ property: nil } ->
-          %{ ast | property: x }
-        _ ->
-          J.member_expression(ast, x)
-      end
-    end)
-
+    members = handle_members(module, name, arity)
 
     J.call_expression(
       members,
@@ -133,6 +136,14 @@ defmodule RayScript.Translator do
   def process({:map, _, properties}) do
     properties = Enum.map(properties, &handle_map_property(&1))
     J.object_expression(properties)
+  end
+
+  def process({:op, _, op, argument}) do
+    J.unary_expression(op, true, process(argument))
+  end
+
+  def process({:op, _, op, left, right}) do
+    J.binary_expression(op, process(left), process(right))
   end
 
   def process(_) do
@@ -164,8 +175,27 @@ defmodule RayScript.Translator do
   defp process_body(params, body) do
     body = Enum.map(body, &process(&1))
     |> List.flatten
+    |> Enum.map(fn(x) -> J.yield_expression(x) end)
     |> J.block_statement
 
-    J.function_expression(params, [], body)
+    J.function_expression(params, [], body, true)
   end
+
+  defp handle_members(module, function, arity) do
+    pieces = String.split(to_string(module), ".")
+    pieces = pieces ++ ["#{function}_#{arity}"]
+    pieces = Enum.map(pieces, fn(x) -> J.identifier(x) end)
+
+    Enum.reduce(pieces, nil, fn(x, ast) ->
+      case ast do
+        nil ->
+          J.member_expression(x, nil)
+        %ESTree.MemberExpression{ property: nil } ->
+          %{ ast | property: x }
+        _ ->
+          J.member_expression(ast, x)
+      end
+    end)
+  end
+  
 end
