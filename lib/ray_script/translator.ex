@@ -190,6 +190,10 @@ defmodule RayScript.Translator do
     J.unary_expression(op, true, process(argument))
   end
 
+  def process({:op, _, :rem, left, right}) do
+    J.binary_expression(:%, process(left), process(right))
+  end
+
   def process({:op, _, :and, left, right}) do
     J.binary_expression(:&&, process(left), process(right))
   end  
