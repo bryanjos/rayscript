@@ -2,6 +2,54 @@ defmodule RayScript.Translator do
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator.{ Bitstring, Match }
 
+
+  def process({:lc, _, pattern, values}) do
+    {generators, filters} = Enum.split_with(values, fn
+      ({:generate, _, _, _}) -> true
+      _ -> false
+    end)
+
+    patterns = generators
+    |> Enum.map(fn {:generate, _, pattern, _} -> 
+      pattern
+    end)
+
+    generators = generators
+    |> Enum.map(&process(&1))
+    |> J.array_expression
+
+    J.call_expression(
+      J.member_expression(
+        J.identifier("Patterns"),
+        J.identifier("list_comprehension")
+      ),
+      [
+        process({:clause, 0, patterns, [filters], [pattern]}),
+        generators
+      ]
+    )
+
+
+  end
+
+  def process({:generate, _, pattern, list}) do   
+    {patterns, _} = RayScript.Translator.Patterns.process([pattern])
+    list = process(list)
+
+    J.call_expression(
+      J.member_expression(
+        J.identifier("Patterns"),
+        J.identifier("list_generator")
+      ),
+      [
+        J.array_expression(patterns),
+        list
+      ]
+    )
+  end
+  
+
+
   def process({:clauses, clauses}) do
     processed = Enum.map(clauses, &process(&1))
 
@@ -17,7 +65,6 @@ defmodule RayScript.Translator do
   def process({:clause, _, pattern, guard, body}) do
     {patterns, params} = RayScript.Translator.Patterns.process(pattern)
 
-
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
@@ -25,8 +72,9 @@ defmodule RayScript.Translator do
       ),
       [
         J.array_expression(patterns),
-        process_body(params, body)
-      ] ++ process_guard(guard)
+        process_body(params, body),
+        process_guard(params, guard)
+      ]
     )
   end
 
@@ -87,15 +135,15 @@ defmodule RayScript.Translator do
     J.array_expression([])
   end
 
-  def process({:cons, _, head, tail}) do
-    J.call_expression(
-      J.member_expression(
-        J.array_expression([process(head)]),
-        J.identifier("concat")
-      ),
-      [process(tail)]
-    )
-  end  
+#  def process({:cons, _, head, {type, _, _} = tail}) when type != :cons do
+#    J.call_expression(
+#      J.member_expression(
+#        J.array_expression([process(head)]),
+#        J.identifier("concat")
+#      ),
+#      [process(tail)]
+#    )
+#  end    
 
   def process({:cons, _, _, _} = cons) do
     J.array_expression(handle_cons(cons, []))
@@ -142,6 +190,22 @@ defmodule RayScript.Translator do
     J.unary_expression(op, true, process(argument))
   end
 
+  def process({:op, _, :and, left, right}) do
+    J.binary_expression(:&&, process(left), process(right))
+  end  
+
+  def process({:op, _, :andalso, left, right}) do
+    J.binary_expression(:&&, process(left), process(right))
+  end
+
+  def process({:op, _, :or, left, right}) do
+    J.binary_expression(:||, process(left), process(right))
+  end   
+
+  def process({:op, _, :orelse, left, right}) do
+    J.binary_expression(:||, process(left), process(right))
+  end    
+
   def process({:op, _, op, left, right}) do
     J.binary_expression(op, process(left), process(right))
   end
@@ -164,12 +228,25 @@ defmodule RayScript.Translator do
     J.property(key, value, :init, false, false, true)
   end
 
-  defp process_guard([]) do
-    []
+  defp process_guard(params, []) do
+    J.function_expression(params, [], J.block_statement([
+      J.return_statement(
+        J.literal(true)
+      )
+    ]))
   end
 
-  defp process_guard(guard) do
-    J.identifier("null")
+  defp process_guard(params, guards) do
+    and_guards = guards
+    |> Enum.map(fn guard -> build_and_guard(guard, nil) end)
+
+    or_guard = build_or_guard(and_guards, nil)
+
+    J.function_expression(params, [], J.block_statement([
+      J.return_statement(
+        process(or_guard)
+      )
+    ]))
   end
 
   defp process_body(params, body) do
@@ -198,4 +275,45 @@ defmodule RayScript.Translator do
     end)
   end
   
+
+
+  defp build_and_guard([], nil) do
+    {:atom, 0, true}
+  end
+
+  defp build_and_guard([], value) do
+    value
+  end
+
+  defp build_and_guard([filter], nil) do
+    filter
+  end
+
+  defp build_and_guard([filter], value) do
+    {:op, 6, :andalso, filter, value }
+  end
+
+  defp build_and_guard([filter| filters], nil) do
+    {:op, 6, :andalso, filter, build_and_guard(filters, nil)}
+  end
+
+  defp build_or_guard([], nil) do
+    {:atom, 0, true}
+  end  
+
+  defp build_or_guard([], value) do
+    value
+  end
+
+  defp build_or_guard([filter], nil) do
+    filter
+  end
+
+  defp build_or_guard([filter], value) do
+    {:op, 6, :orelse, filter, value }
+  end
+
+  defp build_or_guard([filter| filters], nil) do
+    {:op, 6, :orelse, filter, build_or_guard(filters, nil)}
+  end  
 end
