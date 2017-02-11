@@ -27,10 +27,10 @@ defmodule RayScript.Translator.Bitstring do
     |> J.literal
   end
 
-  def process_bin_element({:bin_element, _, RayScript.Patterns, _, _}) do
+  def process_bin_element({:bin_element, _, RayScript.Translator.Patterns, _, _}) do
     J.object_expression([J.property(
                              J.literal("value"),
-                             RayScript.Patterns.parameter()
+                             RayScript.Translator.Patterns.parameter()
                            )
                          ])
   end
@@ -49,7 +49,11 @@ defmodule RayScript.Translator.Bitstring do
   end
 
   def process_bin_element({:bin_element, _, {type, _, _} = value, :default, :default}) do
-    type = if type == :string, do: :binary, else: type
+    type = case type do 
+      :string -> :binary
+      :var -> :integer
+      _ -> type
+    end
 
     J.call_expression(
       J.member_expression(
@@ -63,6 +67,12 @@ defmodule RayScript.Translator.Bitstring do
   end
 
   def process_bin_element({:bin_element, _, {_, _, _} = value, {type, _, size}, :default}) do
+    type = case type do 
+      :string -> :binary
+      :var -> :integer
+      _ -> type
+    end
+
     inner = J.call_expression(
       J.member_expression(
         J.identifier("BitString"),
@@ -99,7 +109,7 @@ defmodule RayScript.Translator.Bitstring do
     end)
   end
 
-  def process_bin_element({:bin_element, _, {type, _, _} = value, :default, attrs}) do
+  def process_bin_element({:bin_element, _, {type, _, _} = value, :default, attrs}) do  
     inner = J.call_expression(
       J.member_expression(
         J.identifier("BitString"),

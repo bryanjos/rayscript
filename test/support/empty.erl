@@ -3,6 +3,7 @@
 -export([]).
 
 lookup(Name, List) ->
-    [ X || <<X>> <= <<1,2,3,4,5>>, X rem 2 == 0].
+    fun erlang:send/2.
+
 
 xyz(p) -> fun lookup/2.

@@ -2,16 +2,19 @@ defmodule RayScript.Translator do
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator.{ Bitstring, Match }
 
-
-  def process({:lc, _, pattern, values}) do
+  def process({type, _, pattern, values}) when type in [:lc, :bc] do
     {generators, filters} = Enum.split_with(values, fn
-      ({:generate, _, _, _}) -> true
+      {:generate, _, _, _} -> true
+      {:b_generate, _, _, _} -> true
       _ -> false
     end)
 
+    comprehension_name = if type == :lc, do: "list_comprehension", else: "bitstring_comprehension"
+
     patterns = generators
-    |> Enum.map(fn {:generate, _, pattern, _} -> 
-      pattern
+    |> Enum.map(fn 
+      {:generate, _, pattern, _} -> pattern
+      {:b_generate, _, pattern, _} -> pattern      
     end)
 
     generators = generators
@@ -21,25 +24,23 @@ defmodule RayScript.Translator do
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
-        J.identifier("list_comprehension")
+        J.identifier(comprehension_name)
       ),
       [
         process({:clause, 0, patterns, [filters], [pattern]}),
         generators
       ]
     )
-
-
   end
 
-  def process({:generate, _, pattern, list}) do   
+  def process({generate, _, pattern, list}) when generate in [:generate, :b_generate] do   
     {patterns, _} = RayScript.Translator.Patterns.process([pattern])
     list = process(list)
 
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
-        J.identifier("list_generator")
+        J.identifier(generator_function_name(generate))
       ),
       [
         J.array_expression(patterns),
@@ -47,8 +48,14 @@ defmodule RayScript.Translator do
       ]
     )
   end
-  
 
+  defp generator_function_name(:generate) do
+    "list_generator"
+  end
+
+  defp generator_function_name(:b_generate) do
+    "bitstring_generator"
+  end
 
   def process({:clauses, clauses}) do
     processed = Enum.map(clauses, &process(&1))
@@ -186,8 +193,32 @@ defmodule RayScript.Translator do
     J.object_expression(properties)
   end
 
+  def process({:op, _, :bnot, argument}) do
+    J.unary_expression(:~, true, process(argument))
+  end
+
+  def process({:op, _, :not, argument}) do
+    J.unary_expression(:!, true, process(argument))
+  end  
+
   def process({:op, _, op, argument}) do
     J.unary_expression(op, true, process(argument))
+  end
+
+  def process({:op, _, :/=, left, right}) do
+    J.binary_expression(:!=, process(left), process(right))
+  end
+
+  def process({:op, _, :"=:=", left, right}) do
+    J.binary_expression(:===, process(left), process(right))
+  end
+
+  def process({:op, _, :"=/=", left, right}) do
+    J.binary_expression(:!==, process(left), process(right))
+  end
+
+  def process({:op, _, :div, left, right}) do
+    J.binary_expression(:/, process(left), process(right))
   end
 
   def process({:op, _, :rem, left, right}) do
@@ -208,10 +239,45 @@ defmodule RayScript.Translator do
 
   def process({:op, _, :orelse, left, right}) do
     J.binary_expression(:||, process(left), process(right))
-  end    
+  end
+
+  def process({:op, _, :band, left, right}) do
+    J.binary_expression(:&, process(left), process(right))
+  end
+
+  def process({:op, _, :bor, left, right}) do
+    J.binary_expression(:|, process(left), process(right))
+  end
+
+  def process({:op, _, :bxor, left, right}) do
+    J.binary_expression(:^, process(left), process(right))
+  end
+
+  def process({:op, _, :bsl, left, right}) do
+    J.binary_expression(:"<<", process(left), process(right))
+  end
+
+  def process({:op, _, :bsr, left, right}) do
+    J.binary_expression(:">>", process(left), process(right))
+  end
+
+  def process({:op, _, :xor, left, right}) do
+    l = process(left)
+    r = process(right)
+
+    J.binary_expression(
+      :||,
+      J.binary_expression(:&&, l, J.unary_expression(:!, true, r)),
+      J.binary_expression(:&&, J.unary_expression(:!, true, l), r)
+    )
+  end  
 
   def process({:op, _, op, left, right}) do
     J.binary_expression(op, process(left), process(right))
+  end
+
+  def process({:string, _, str}) do
+    J.literal(to_string(str))
   end
 
   def process(_) do
@@ -279,8 +345,6 @@ defmodule RayScript.Translator do
     end)
   end
   
-
-
   defp build_and_guard([], nil) do
     {:atom, 0, true}
   end
