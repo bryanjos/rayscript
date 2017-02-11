@@ -168,6 +168,14 @@ defmodule RayScript.Translator.Patterns do
     { [parameter()], [JS.identifier(variable)] }
   end
 
+  defp do_process({:cons, _, head, {type, _, _} = tail}) when not (type in [:cons, :nil])  do
+    { head_patterns, head_params } = do_process(head)
+    { tail_patterns, tail_params } = do_process(tail)
+    params = head_params ++ tail_params
+
+    { [head_tail(hd(head_patterns), hd(tail_patterns))], params }
+  end  
+
   defp do_process({:cons, _, _, {nil, 0}} = cons) do
     { patterns, params } = cons
     |> handle_cons([])
@@ -184,14 +192,6 @@ defmodule RayScript.Translator.Patterns do
     |> reduce_patterns
 
     { [JS.array_expression(patterns)], params }
-  end
-
-  defp do_process({:cons, _, head, tail}) do
-    { head_patterns, head_params } = do_process(head)
-    { tail_patterns, tail_params } = do_process(tail)
-    params = head_params ++ tail_params
-
-    { [head_tail(hd(head_patterns), hd(tail_patterns))], params }
   end
 
   defp do_process({:tuple, _, list}) do
@@ -241,8 +241,12 @@ defmodule RayScript.Translator.Patterns do
     list ++ [head]
   end
 
-  defp handle_cons({:cons, _, head, tail}, list) do
+  defp handle_cons({:cons, _, head, {:cons, _, _} = tail}, list) do
     list ++ [head] ++ handle_cons(tail, list)
+  end  
+
+  defp handle_cons({:cons, _, head, tail}, list) do
+    list ++ [head] ++ [tail]
   end
 
 end

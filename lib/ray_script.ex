@@ -22,7 +22,7 @@ defmodule RayScript do
     beam
     |> get_beam
     |> to_abstract
-    |> IO.inspect
+    |> IO.inspect(limit: :infinity)
     |> to_js_ast
     |> to_js_code
     |> IO.puts

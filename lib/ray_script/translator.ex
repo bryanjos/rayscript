@@ -136,15 +136,15 @@ defmodule RayScript.Translator do
     J.array_expression([])
   end
 
-#  def process({:cons, _, head, {type, _, _} = tail}) when type != :cons do
-#    J.call_expression(
-#      J.member_expression(
-#        J.array_expression([process(head)]),
-#        J.identifier("concat")
-#      ),
-#      [process(tail)]
-#    )
-#  end    
+  def process({:cons, _, head, {type, _, _} = tail}) when not (type in [:cons, :nil]) do
+    J.call_expression(
+      J.member_expression(
+        J.array_expression([process(head)]),
+        J.identifier("concat")
+      ),
+      [process(tail)]
+    )
+  end    
 
   def process({:cons, _, _, _} = cons) do
     J.array_expression(handle_cons(cons, []))
@@ -198,6 +198,10 @@ defmodule RayScript.Translator do
   def process({:op, _, op, argument}) do
     J.unary_expression(op, true, process(argument))
   end
+
+  def process({:op, _, :"=<", left, right}) do
+    J.binary_expression(:<=, process(left), process(right))
+  end  
 
   def process({:op, _, :"/=", left, right}) do
     J.binary_expression(:!=, process(left), process(right))
@@ -282,8 +286,12 @@ defmodule RayScript.Translator do
     list ++ [process(head)]
   end
 
-  defp handle_cons({:cons, _, head, tail}, list) do
+  defp handle_cons({:cons, _, head, {:cons, _, _} = tail}, list) do
     list ++ [process(head)] ++ handle_cons(tail, list)
+  end  
+
+  defp handle_cons({:cons, _, head, tail}, list) do
+    list ++ [process(head)] ++ [process(tail)]
   end
 
   defp handle_map_property({type, _, key, value}) when type in [:map_field_assoc, :map_field_exact] do
@@ -293,11 +301,13 @@ defmodule RayScript.Translator do
   end
 
   defp process_guard(params, []) do
-    J.function_expression(params, [], J.block_statement([
+    body = J.block_statement([
       J.return_statement(
         J.literal(true)
       )
-    ]))
+    ])
+
+    J.function_expression(params, [], body, true)
   end
 
   defp process_guard(params, guards) do
@@ -306,11 +316,13 @@ defmodule RayScript.Translator do
 
     or_guard = build_or_guard(and_guards, nil)
 
-    J.function_expression(params, [], J.block_statement([
+    body = J.block_statement([
       J.return_statement(
         process(or_guard)
       )
-    ]))
+    ])
+
+    J.function_expression(params, [], body, true)
   end
 
   defp process_body(params, body) do
@@ -377,5 +389,5 @@ defmodule RayScript.Translator do
 
   defp build_or_guard([filter| filters], nil) do
     {:op, 6, :orelse, filter, build_or_guard(filters, nil)}
-  end  
+  end
 end
