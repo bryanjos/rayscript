@@ -33,28 +33,22 @@ defmodule RayScript.Translator do
     )
   end
 
-  def process({generate, _, pattern, list}) when generate in [:generate, :b_generate] do   
+  def process({type, _, pattern, list}) when type in [:generate, :b_generate] do   
     {patterns, _} = RayScript.Translator.Patterns.process([pattern])
     list = process(list)
+
+    generator_name = if type == :generate, do: "list_generator", else: "bitstring_generator"
 
     J.call_expression(
       J.member_expression(
         J.identifier("Patterns"),
-        J.identifier(generator_function_name(generate))
+        J.identifier(generator_name)
       ),
       [
         J.array_expression(patterns),
         list
       ]
     )
-  end
-
-  defp generator_function_name(:generate) do
-    "list_generator"
-  end
-
-  defp generator_function_name(:b_generate) do
-    "bitstring_generator"
   end
 
   def process({:clauses, clauses}) do
@@ -194,7 +188,7 @@ defmodule RayScript.Translator do
   end
 
   def process({:op, _, :bnot, argument}) do
-    J.unary_expression(:~, true, process(argument))
+    J.unary_expression(:"~", true, process(argument))
   end
 
   def process({:op, _, :not, argument}) do
@@ -205,7 +199,7 @@ defmodule RayScript.Translator do
     J.unary_expression(op, true, process(argument))
   end
 
-  def process({:op, _, :/=, left, right}) do
+  def process({:op, _, :"/=", left, right}) do
     J.binary_expression(:!=, process(left), process(right))
   end
 
