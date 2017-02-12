@@ -2,6 +2,12 @@ defmodule RayScript.Translator do
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator.{ Bitstring, Match }
 
+  @doc """
+  Converts the given Erlang Abstract Form to an ESTree struct
+  """
+  @spec process(tuple) :: ESTree.Node.t
+  def process(abs)
+
   def process({type, _, pattern, values}) when type in [:lc, :bc] do
     {generators, filters} = Enum.split_with(values, fn
       {:generate, _, _, _} -> true
@@ -122,7 +128,7 @@ defmodule RayScript.Translator do
   end
 
   def process({:char, _, n})  do
-    J.literal(n)
+    J.literal(to_string(n))
   end
 
   def process({:tuple, _, items}) do
@@ -132,7 +138,7 @@ defmodule RayScript.Translator do
     )
   end
 
-  def process({:nil, 0}) do
+  def process({:nil, _}) do
     J.array_expression([])
   end
 

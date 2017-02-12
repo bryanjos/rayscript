@@ -1,4 +1,6 @@
 defmodule RayScript.Translator.Patterns do
+  @moduledoc false
+  
   alias ESTree.Tools.Builder, as: JS
   alias RayScript.Translator
   alias RayScript.Translator.Bitstring

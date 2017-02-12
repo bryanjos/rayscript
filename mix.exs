@@ -9,7 +9,10 @@ defmodule RayScript.Mixfile do
      erlc_paths: erlc_paths(Mix.env),
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps()]
+     deps: deps(),
+     test_coverage: [tool: ExCoveralls],
+     preferred_cli_env: ["coveralls": :test, "coveralls.detail": :test, "coveralls.post": :test, "coveralls.html": :test],     
+    ]
   end
 
   def application do
@@ -25,7 +28,11 @@ defmodule RayScript.Mixfile do
   defp deps do
     [
       {:flow, "~> 0.11.0"},
-      {:estree, "~> 2.5"}
+      {:estree, "~> 2.5"},
+      {:excoveralls, "~> 0.6.2", only: :test},
+      {:dialyxir, "~> 0.4", only: :dev, runtime: false},
+      {:credo, "~> 0.6.1", only: :dev},
+      {:ex_doc, "~> 0.14.5", only: :dev}
     ]
   end
 end

@@ -2,14 +2,21 @@ defmodule RayScript.ModuleBuilder do
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator
 
+  @doc """
+  Makes a RayScript.Module from the given Erlang Abstract Format Module Declaration
+  """
+  @spec build(list(tuple)) :: RayScript.Module.t
   def build(abstract) do
     Enum.reduce(abstract, %RayScript.Module{}, fn(ast, result) ->
       process_form(ast, result)
     end)
-    |> build_module
   end
 
-  defp build_module(result) do
+  @doc """
+  Turns a RayScript.Module into a JavaScript Program Node
+  """
+  @spec to_js_module(RayScript.Module.t) :: ESTree.Program.t
+  def to_js_module(result) do
     js_exports = result.export
     |> Enum.reduce([], fn({name, arity}, acc) ->
       acc ++ ["#{name}_#{arity}"]
@@ -25,8 +32,12 @@ defmodule RayScript.ModuleBuilder do
     J.program(js_body ++ [js_exports], :module)
   end
 
+  defp process_form({:attribute, _, :module, module}, result) do
+    %{ result | module: module }
+  end
+
   defp process_form({:attribute, _, :file, {file, _}}, result) do
-    %{ result | file: file }
+    %{ result | file: to_string(file) }
   end
 
   defp process_form({:attribute, _, :export, exports}, result) do
