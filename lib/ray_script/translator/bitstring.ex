@@ -3,6 +3,7 @@ defmodule RayScript.Translator.Bitstring do
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator
 
+  @spec process(tuple) :: ESTree.Node.t
   def process({:bin, _, elements}) do
     all_strings = Enum.all?(elements, fn
       {:bin_element, _, {:string, _, _}, :default, :default} -> true
@@ -21,12 +22,16 @@ defmodule RayScript.Translator.Bitstring do
   end
 
   defp process_string(elements) do
-    Enum.reduce(elements, [], fn({:bin_element, _, {:string, _, str}, _, _}, acc) ->
+    elements
+    |> Enum.reduce([], fn({:bin_element, _, {:string, _, str}, _, _}, acc) ->
       acc ++ [str]
     end)
     |> Enum.join("")
     |> J.literal
   end
+
+  @spec process_bin_element(tuple) :: ESTree.Node.t
+  def process_bin_element(bin_element)
 
   def process_bin_element({:bin_element, _, RayScript.Translator.Patterns, _, _}) do
     J.object_expression([J.property(
@@ -41,7 +46,7 @@ defmodule RayScript.Translator.Bitstring do
     J.call_expression(
       J.member_expression(
         J.identifier("BitString"),
-        J.identifier(attr)
+        J.identifier(to_string(attr))
       ),
       [
         J.literal(str)
@@ -87,7 +92,7 @@ defmodule RayScript.Translator.Bitstring do
     J.call_expression(
       J.member_expression(
         J.identifier("BitString"),
-        J.identifier(:size)
+        J.identifier("size")
       ),
       [
         inner,
@@ -155,7 +160,7 @@ defmodule RayScript.Translator.Bitstring do
     size = J.call_expression(
       J.member_expression(
         J.identifier("BitString"),
-        J.identifier(:size)
+        J.identifier("size")
       ),
       [
         inner,

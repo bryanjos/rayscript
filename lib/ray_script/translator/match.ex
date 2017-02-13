@@ -4,10 +4,11 @@ defmodule RayScript.Translator.Match do
   alias RayScript.Translator
   alias RayScript.Translator.Patterns
 
+  @spec match(tuple, tuple) :: ESTree.Node.t 
   def match(left, right) do
     right_ast = Translator.process(right)
 
-    { patterns, params } = Patterns.process([left])
+    {patterns, params} = Patterns.process([left])
 
       declarator = JS.variable_declarator(
         JS.array_pattern(params),
@@ -25,9 +26,9 @@ defmodule RayScript.Translator.Match do
     js_ast = case left do
       list when is_list(list) ->
         make_list_ref(array_pattern, params)
-      { _, _ } ->
+      {_, _} ->
         make_tuple_ref(array_pattern, params)
-      {:{}, _, _ } ->
+      {:{}, _, _} ->
         make_tuple_ref(array_pattern, params)
       _ ->
         array_pattern
@@ -41,7 +42,7 @@ defmodule RayScript.Translator.Match do
 
     ref_declarator = JS.variable_declarator(
       ref,
-      Translator.process(params)
+      JS.array_expression(params)
     )
 
     make_variable_declaration_and_group(ref_declarator, array_pattern)
@@ -66,11 +67,11 @@ defmodule RayScript.Translator.Match do
     ref = JS.identifier("_ref")
 
     params = Enum.map(params, fn
-      (nil) -> JS.identifier(:undefined)
+      (nil) -> JS.identifier("undefined")
       (x) -> x
     end)
 
-    { ref, params }
+    {ref, params}
   end
 
   defp make_variable_declaration_and_group(ref_declarator, array_pattern) do

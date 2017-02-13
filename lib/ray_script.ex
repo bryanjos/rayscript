@@ -1,9 +1,15 @@
 defmodule RayScript do
+  @moduledoc """
+  Top-level module for compiling Beam files
+  """
+
   alias RayScript.ModuleBuilder
   alias ESTree.Tools.Generator
 
+  @spec compile(keyword) :: list
   def compile(opts \\ [input_path: Mix.Project.build_path()]) do
-    get_modules(opts[:input_path])
+    opts[:input_path]
+    |> get_modules
     |> Flow.from_enumerable()
     |> Flow.map(&get_beam(&1))
     |> Flow.map(&to_abstract(&1))
@@ -14,10 +20,12 @@ defmodule RayScript do
   end
 
   defp get_modules(build_path) do
-    Path.join([build_path, "**", "*.beam"])
+    [build_path, "**", "*.beam"]
+    |> Path.join
     |> Path.wildcard
   end
 
+  @spec compile_module(binary | atom) :: tuple
   def compile_module(beam) do
     beam
     |> get_beam

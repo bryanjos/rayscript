@@ -1,6 +1,10 @@
 defmodule RayScript.Translator do
+  @moduledoc """
+  Handles translation of forms to JavaScript AST
+  """
+
   alias ESTree.Tools.Builder, as: J
-  alias RayScript.Translator.{ Bitstring, Match }
+  alias RayScript.Translator.{Bitstring, Match}
 
   @doc """
   Converts the given Erlang Abstract Form to an ESTree struct
@@ -10,20 +14,15 @@ defmodule RayScript.Translator do
 
   def process({type, _, pattern, values}) when type in [:lc, :bc] do
     {generators, filters} = Enum.split_with(values, fn
-      {:generate, _, _, _} -> true
-      {:b_generate, _, _, _} -> true
+      {type, _, _, _} when type in [:generate, :b_generate] -> true
       _ -> false
     end)
 
     comprehension_name = if type == :lc, do: "list_comprehension", else: "bitstring_comprehension"
 
-    patterns = generators
-    |> Enum.map(fn 
-      {:generate, _, pattern, _} -> pattern
-      {:b_generate, _, pattern, _} -> pattern      
-    end)
+    patterns = Enum.map(generators, fn {_, _, pattern, _} -> pattern end)
 
-    generators = generators
+    generator_array = generators
     |> Enum.map(&process(&1))
     |> J.array_expression
 
@@ -34,7 +33,7 @@ defmodule RayScript.Translator do
       ),
       [
         process({:clause, 0, patterns, [filters], [pattern]}),
-        generators
+        generator_array
       ]
     )
   end
@@ -85,7 +84,7 @@ defmodule RayScript.Translator do
     )
   end
 
-  def process({:fun, _, {:function, {:atom, _, module}, {:atom, _, name}, {:integer, _, arity}}} ) do
+  def process({:fun, _, {:function, {:atom, _, module}, {:atom, _, name}, {:integer, _, arity}}}) do
     J.member_expression(
       J.identifier(to_string(module)),
       J.identifier("#{name}_#{arity}")
@@ -337,7 +336,8 @@ defmodule RayScript.Translator do
   end
 
   defp process_body(params, body) do
-    body = Enum.map(body, &process(&1))
+    body = body 
+    |> Enum.map(&process(&1))
     |> List.flatten
     |> Enum.map(fn(x) -> J.yield_expression(x) end)
     |> J.block_statement
@@ -358,7 +358,7 @@ defmodule RayScript.Translator do
   end
 
   defp build_and_guard([filter], value) do
-    {:op, 6, :andalso, filter, value }
+    {:op, 6, :andalso, filter, value}
   end
 
   defp build_and_guard([filter| filters], nil) do
@@ -378,7 +378,7 @@ defmodule RayScript.Translator do
   end
 
   defp build_or_guard([filter], value) do
-    {:op, 6, :orelse, filter, value }
+    {:op, 6, :orelse, filter, value}
   end
 
   defp build_or_guard([filter| filters], nil) do

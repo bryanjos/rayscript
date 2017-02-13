@@ -1,4 +1,8 @@
 defmodule RayScript.ModuleBuilder do
+  @moduledoc """
+  Turns a module in Erlang Abstract Format to a RayScript.Module
+  """
+
   alias ESTree.Tools.Builder, as: J
   alias RayScript.Translator
 
@@ -33,15 +37,15 @@ defmodule RayScript.ModuleBuilder do
   end
 
   defp process_form({:attribute, _, :module, module}, result) do
-    %{ result | module: module }
+    %{result | module: module}
   end
 
   defp process_form({:attribute, _, :file, {file, _}}, result) do
-    %{ result | file: to_string(file) }
+    %{result | file: to_string(file)}
   end
 
   defp process_form({:attribute, _, :export, exports}, result) do
-    %{ result | export: exports }
+    %{result | export: exports}
   end
 
   defp process_form({:function, _, name, arity, clauses}, result) do
@@ -54,7 +58,7 @@ defmodule RayScript.ModuleBuilder do
 
     form = J.variable_declaration([declarator], :const)
 
-    %{ result | body: result.body ++ [form] }
+    %{result | body: result.body ++ [form]}
   end
 
   defp process_form(_, result) do

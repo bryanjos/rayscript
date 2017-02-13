@@ -1,4 +1,8 @@
 defmodule Mix.Tasks.Compile.RayScript do
+  @moduledoc """
+  Mix compiler for RayScript
+  """
+
   use Mix.Task
 
   @moduledoc """
@@ -18,7 +22,7 @@ defmodule Mix.Tasks.Compile.RayScript do
       end
   """
 
-
+  @spec run(any) :: :ok
   def run(_) do
     RayScript.compile()
     :ok
