@@ -86,7 +86,10 @@ defmodule RayScript.Translator do
   end
 
   def process({:fun, _, {:function, {:atom, _, module}, {:atom, _, name}, {:integer, _, arity}}} ) do
-    handle_members(module, name, arity)
+    J.member_expression(
+      J.identifier(to_string(module)),
+      J.identifier("#{name}_#{arity}")
+    )
   end
 
   def process({:fun, _, {:function, name, arity}}) do
@@ -180,10 +183,12 @@ defmodule RayScript.Translator do
 
   def process({:call, _, {:remote, _, {:atom, _, module}, {:atom, _, name}}, params}) do
     arity = length(params)
-    members = handle_members(module, name, arity)
 
     J.call_expression(
-      members,
+      J.member_expression(
+        J.identifier(to_string(module)),
+        J.identifier("#{name}_#{arity}")
+      ),
       Enum.map(params, &process(&1))
     )
   end
@@ -338,23 +343,6 @@ defmodule RayScript.Translator do
     |> J.block_statement
 
     J.function_expression(params, [], body, true)
-  end
-
-  defp handle_members(module, function, arity) do
-    pieces = String.split(to_string(module), ".")
-    pieces = pieces ++ ["#{function}_#{arity}"]
-    pieces = Enum.map(pieces, fn(x) -> J.identifier(x) end)
-
-    Enum.reduce(pieces, nil, fn(x, ast) ->
-      case ast do
-        nil ->
-          J.member_expression(x, nil)
-        %ESTree.MemberExpression{ property: nil } ->
-          %{ ast | property: x }
-        _ ->
-          J.member_expression(ast, x)
-      end
-    end)
   end
   
   defp build_and_guard([], nil) do
