@@ -43,7 +43,7 @@ defmodule RayScript do
 
   defp to_js_ast(abstract_code) do
     abstract_code
-    |> ModuleBuilder.build(abstract_code)
+    |> ModuleBuilder.build
     |> ModuleBuilder.to_js_module
   end
 
